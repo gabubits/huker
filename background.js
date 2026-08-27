@@ -128,6 +128,18 @@ chrome.runtime.onMessage.addListener((mensagem, sender, sendResponse) => {
 
       const associacoes = dados[STORAGE_ASSOCIACOES] || {};
 
+      const associacao = associacoes[mensagem.chatId];
+
+      if (associacao?.windowId) {
+        try {
+          await chrome.windows.remove(associacao.windowId);
+
+          console.log(`Janela ${associacao.windowId} fechada.`);
+        } catch (erro) {
+          console.log(`A janela ${associacao.windowId} já estava fechada.`);
+        }
+      }
+
       delete associacoes[mensagem.chatId];
 
       await chrome.storage.local.set({
