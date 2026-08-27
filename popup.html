@@ -1,67 +1,69 @@
 <!doctype html>
-
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-
     <title>Huker</title>
-
     <link rel="stylesheet" href="popup.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.min.css"
+    />
   </head>
-
   <body>
-    <div class="container">
+    <div class="header">
       <h1>Huker</h1>
-
-      <!-- CHAT ATUAL -->
-
+    </div>
+    <div class="container">
+      <!-- Chat Atual -->
       <section class="card">
-        <h2>Chat atual</h2>
-
-        <div id="chatInfo" class="chat-info">Carregando...</div>
-      </section>
-
-      <!-- ASSOCIAÇÃO -->
-
-      <section class="card">
-        <h2>Associar janela</h2>
-
-        <label for="clienteNome"> Nome do cliente </label>
-
-        <input type="text" id="clienteNome" placeholder="Nome do cliente" />
-
-        <div id="janelaInfo" class="janela-info">
-          Janela atual será associada.
+        <div class="card-header">
+          <span class="icon"><i class="ri-message-3-line"></i></span>
+          <h2>Chat atual</h2>
         </div>
-
-        <button id="associar" class="primary">🔗 Associar janela atual</button>
-
-        <button id="desassociarAtual" class="danger">
-          Remover associação deste chat
+        <div id="chatInfo" class="info-box">Nenhum chat detectado.</div>
+      </section>
+      <!-- Associar Janela -->
+      <section class="card">
+        <div class="card-header">
+          <span class="icon"><i class="ri-link"></i></span>
+          <h2>Associar janela</h2>
+        </div>
+        <label for="clienteNome" class="form-label">Nome do cliente</label>
+        <input
+          type="text"
+          id="clienteNome"
+          placeholder="Ex: João Silva"
+          class="form-input"
+        />
+        <div id="janelaInfo" class="hint-text">
+          Janela atual será associada a este cliente.
+        </div>
+        <button id="associar" class="btn btn-primary">
+          <i class="ri-link-m"></i> Associar janela
         </button>
-
-        <button id="sincronizarChats" class="sync-button">
-          🧹 Sincronizar chats
+        <button id="desassociarAtual" class="btn btn-secondary">
+          <i class="ri-link-unlink-m"></i> Remover associação
+        </button>
+        <button id="sincronizarChats" class="btn btn-warning">
+          <i class="ri-refresh-line"></i> Sincronizar chats
         </button>
       </section>
-
-      <!-- STATUS -->
-
+      <!-- Status -->
       <div id="status" class="status"></div>
-
-      <!-- LISTA -->
-
+      <!-- Lista -->
       <section class="card">
-        <div class="titulo-lista">
-          <h2>Chats associados</h2>
-
-          <span id="contador"></span>
+        <div class="list-header">
+          <div class="card-header" style="margin-bottom: 0">
+            <span class="icon"><i class="ri-list-check"></i></span>
+            <h2>Chats associados</h2>
+          </div>
+          <span id="contador" class="badge">0</span>
         </div>
-
-        <div id="lista">Carregando...</div>
+        <div id="lista">
+          <p class="empty-state">Nenhum chat associado.</p>
+        </div>
       </section>
     </div>
-
     <script src="popup.js"></script>
   </body>
 </html>
