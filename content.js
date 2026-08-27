@@ -151,3 +151,39 @@ observer.observe(document.documentElement, {
 // Primeira verificação
 
 verificarChat();
+
+function obterChatsDaLista() {
+  const ids = new Set();
+
+  /*
+   * O Huggy mostra o ID do chat abaixo do nome.
+   * Procuramos qualquer texto que contenha somente números
+   * com pelo menos 6 dígitos.
+   */
+
+  const elementos = document.querySelectorAll("div, span, p");
+
+  elementos.forEach((elemento) => {
+    const texto = elemento.textContent?.trim();
+
+    if (!texto) return;
+
+    const encontrado = texto.match(/ID-(\d+)/);
+
+    if (encontrado) {
+      ids.add(encontrado[1]);
+    }
+  });
+
+  return [...ids];
+}
+
+chrome.runtime.onMessage.addListener((mensagem, sender, sendResponse) => {
+  if (mensagem.type === "OBTER_LISTA_CHATS") {
+    sendResponse({
+      chats: obterChatsDaLista(),
+    });
+
+    return true;
+  }
+});

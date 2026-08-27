@@ -177,6 +177,29 @@ chrome.runtime.onMessage.addListener((mensagem, sender, sendResponse) => {
 
     return true;
   }
+
+  if (mensagem.type === "SINCRONIZAR_CHATS") {
+    (async () => {
+      try {
+        const resultado = await sincronizarChatsHuggy();
+
+        sendResponse({
+          sucesso: true,
+          fechados: resultado.fechados,
+          mantidos: resultado.mantidos,
+        });
+      } catch (erro) {
+        console.error(erro);
+
+        sendResponse({
+          sucesso: false,
+          erro: erro.message,
+        });
+      }
+    })();
+
+    return true;
+  }
 });
 
 // ==========================================
@@ -240,3 +263,59 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
     });
   }
 });
+
+async function sincronizarChatsHuggy() {
+  // Procura a aba do Huggy
+  const tabs = await chrome.tabs.query({
+    url: "https://www.huggy.app/panel/attendance/inbox/*",
+  });
+
+  if (!tabs.length) {
+    throw new Error("Nenhuma aba do Huggy encontrada.");
+  }
+
+  const abaHuggy = tabs[0];
+
+  // Pede ao content.js todos os chats visíveis
+  const resposta = await chrome.tabs.sendMessage(abaHuggy.id, {
+    type: "OBTER_LISTA_CHATS",
+  });
+
+  const chatsPresentes = new Set(resposta?.chats || []);
+
+  console.log("Chats presentes:", [...chatsPresentes]);
+
+  const dados = await chrome.storage.local.get(STORAGE_ASSOCIACOES);
+
+  const associacoes = dados[STORAGE_ASSOCIACOES] || {};
+
+  const fechados = [];
+  const mantidos = [];
+
+  for (const chatId in associacoes) {
+    if (chatsPresentes.has(chatId)) {
+      mantidos.push(chatId);
+
+      continue;
+    }
+
+    try {
+      await chrome.windows.remove(associacoes[chatId].windowId);
+    } catch (erro) {
+      console.warn(`Janela do chat ${chatId} já estava fechada.`);
+    }
+
+    fechados.push(chatId);
+
+    delete associacoes[chatId];
+  }
+
+  await chrome.storage.local.set({
+    [STORAGE_ASSOCIACOES]: associacoes,
+  });
+
+  return {
+    fechados,
+    mantidos,
+  };
+}

@@ -130,3 +130,10 @@ button {
   color: #777;
   font-size: 13px;
 }
+
+.sync-button {
+  background: #fff3cd;
+  color: #8a5300;
+  border: 1px solid #f0d98c;
+  font-weight: bold;
+}

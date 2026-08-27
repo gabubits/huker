@@ -14,6 +14,8 @@ const contador = document.getElementById("contador");
 
 const status = document.getElementById("status");
 
+const sincronizarChats = document.getElementById("sincronizarChats");
+
 let chatAtual = null;
 let janelaAtual = null;
 
@@ -208,6 +210,30 @@ async function carregarLista() {
     });
   });
 }
+
+sincronizarChats.addEventListener("click", async () => {
+  mostrarStatus("Verificando chats presentes no Huggy...");
+
+  const resposta = await chrome.runtime.sendMessage({
+    type: "SINCRONIZAR_CHATS",
+  });
+
+  if (!resposta?.sucesso) {
+    mostrarStatus(resposta?.erro || "Erro ao sincronizar.", true);
+
+    return;
+  }
+
+  const fechados = resposta.fechados || [];
+
+  const mantidos = resposta.mantidos || [];
+
+  mostrarStatus(
+    `${fechados.length} janela(s) fechada(s). ${mantidos.length} chat(s) permanecem ativos.`,
+  );
+
+  await carregarLista();
+});
 
 // ==========================================
 // INICIALIZA
