@@ -1,0 +1,63 @@
+<!doctype html>
+
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+
+    <title>Huker</title>
+
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>Huker</h1>
+
+      <!-- CHAT ATUAL -->
+
+      <section class="card">
+        <h2>Chat atual</h2>
+
+        <div id="chatInfo" class="chat-info">Carregando...</div>
+      </section>
+
+      <!-- ASSOCIAÇÃO -->
+
+      <section class="card">
+        <h2>Associar janela</h2>
+
+        <label for="clienteNome"> Nome do cliente </label>
+
+        <input type="text" id="clienteNome" placeholder="Nome do cliente" />
+
+        <div id="janelaInfo" class="janela-info">
+          Janela atual será associada.
+        </div>
+
+        <button id="associar" class="primary">🔗 Associar janela atual</button>
+
+        <button id="desassociarAtual" class="danger">
+          Remover associação deste chat
+        </button>
+      </section>
+
+      <!-- STATUS -->
+
+      <div id="status" class="status"></div>
+
+      <!-- LISTA -->
+
+      <section class="card">
+        <div class="titulo-lista">
+          <h2>Chats associados</h2>
+
+          <span id="contador"></span>
+        </div>
+
+        <div id="lista">Carregando...</div>
+      </section>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Huker",
+  "version": "1.0.0",
+  "description": "Deixa o gerenciamento de chats e janelas mais fácil!",
+  "permissions": ["tabs", "windows", "storage"],
+  "host_permissions": ["https://www.huggy.app/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "associar-janela": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+U"
+      },
+      "description": "Associar a janela atual ao último chat selecionado"
+    }
+  },
+  "action": {
+    "default_title": "Huker",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.huggy.app/panel/attendance/inbox/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

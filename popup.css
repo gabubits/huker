@@ -1,0 +1,132 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 380px;
+  max-width: 380px;
+  font-family: Arial, sans-serif;
+  background: #f5f5f5;
+  color: #222;
+}
+
+.container {
+  padding: 16px;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: 20px;
+}
+
+h2 {
+  margin-top: 0;
+  font-size: 15px;
+}
+
+.card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.chat-info,
+.janela-info {
+  background: #f4f4f4;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 13px;
+}
+
+label {
+  display: block;
+  margin-top: 10px;
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+input {
+  width: 100%;
+  padding: 9px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+button {
+  width: 100%;
+  border: 0;
+  border-radius: 5px;
+  padding: 10px;
+  margin-top: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.primary {
+  background: #333;
+  color: white;
+}
+
+.danger {
+  background: #e5e5e5;
+  color: #900;
+}
+
+.status {
+  display: none;
+  padding: 10px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.status.show {
+  display: block;
+  background: #e8f4ea;
+  color: #176b28;
+}
+
+.status.error {
+  display: block;
+  background: #fdeaea;
+  color: #9b1c1c;
+}
+
+.titulo-lista {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.associacao {
+  border-top: 1px solid #eee;
+  padding: 10px 0;
+}
+
+.associacao:first-child {
+  border-top: 0;
+}
+
+.associacao strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.associacao .detalhes {
+  font-size: 12px;
+  color: #666;
+}
+
+.associacao button {
+  width: auto;
+  padding: 6px 10px;
+  margin-top: 7px;
+}
+
+.vazio {
+  color: #777;
+  font-size: 13px;
+}
