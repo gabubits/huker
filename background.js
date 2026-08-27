@@ -2,6 +2,7 @@ const STORAGE_ASSOCIACOES = "associacoes";
 const STORAGE_CHAT_ATUAL = "chatAtual";
 const STORAGE_ULTIMO_CHAT = "ultimoChatId";
 const STORAGE_CONFIG_JANELA = "configJanela";
+
 // ==========================================
 // RECEBE ALTERAÇÕES DO HUGGY
 // ==========================================
@@ -39,6 +40,44 @@ async function processarChatHuggy(chatId, clienteNome, tab) {
 }
 
 // ==========================================
+// NORMALIZA UMA ASSOCIAÇÃO
+// Mantém compatibilidade com associações antigas
+// de uma única janela.
+// ==========================================
+
+function normalizarAssociacao(associacao) {
+  if (!associacao) {
+    return null;
+  }
+
+  if (Array.isArray(associacao.windows)) {
+    return {
+      ...associacao,
+      windows: associacao.windows.filter(
+        (janela) => janela && janela.windowId != null,
+      ),
+    };
+  }
+
+  if (associacao.windowId != null) {
+    return {
+      ...associacao,
+      windows: [
+        {
+          windowId: associacao.windowId,
+          criadoEm: associacao.criadoEm || Date.now(),
+        },
+      ],
+    };
+  }
+
+  return {
+    ...associacao,
+    windows: [],
+  };
+}
+
+// ==========================================
 // FOCA A JANELA ASSOCIADA
 // ==========================================
 
@@ -47,28 +86,69 @@ async function focarAssociacao(chatId) {
 
   const associacoes = dados[STORAGE_ASSOCIACOES] || {};
 
-  const associacao = associacoes[chatId];
+  let associacao = normalizarAssociacao(associacoes[chatId]);
 
-  if (!associacao) {
+  if (!associacao || associacao.windows.length === 0) {
     console.log(`Chat ${chatId} não possui janela associada.`);
-
     return;
   }
 
-  try {
-    await chrome.windows.update(associacao.windowId, {
-      focused: true,
-    });
+  let alterado = false;
 
-    console.log(`Chat ${chatId} focou a janela ${associacao.windowId}`);
-  } catch (erro) {
-    console.warn("A janela associada não existe mais.", erro);
+  // Remove referências a janelas que já não existem.
+  const janelasValidas = [];
 
+  for (const janela of associacao.windows) {
+    try {
+      const janelaChrome = await chrome.windows.get(janela.windowId);
+
+      if (janelaChrome?.id != null) {
+        janelasValidas.push(janela);
+      }
+    } catch (erro) {
+      console.warn(
+        `A janela ${janela.windowId} do chat ${chatId} não existe mais.`,
+      );
+
+      alterado = true;
+    }
+  }
+
+  associacao.windows = janelasValidas;
+
+  if (associacao.windows.length === 0) {
     delete associacoes[chatId];
+    alterado = true;
+  } else {
+    associacoes[chatId] = associacao;
+  }
 
+  if (alterado) {
     await chrome.storage.local.set({
       [STORAGE_ASSOCIACOES]: associacoes,
     });
+  }
+
+  for (const janela of associacao.windows) {
+    try {
+      const janelaChrome = await chrome.windows.get(janela.windowId);
+
+      if (janelaChrome.state === "minimized") {
+        await chrome.windows.update(janela.windowId, {
+          state: "normal",
+        });
+      }
+
+      await chrome.windows.update(janela.windowId, {
+        focused: true,
+      });
+
+      console.log(
+        `Chat ${chatId}: janela ${janela.windowId} trazida para frente.`,
+      );
+    } catch (erro) {
+      console.warn(`Não foi possível focar a janela ${janela.windowId}.`, erro);
+    }
   }
 }
 
@@ -77,7 +157,7 @@ async function focarAssociacao(chatId) {
 // ==========================================
 
 async function associarJanela(chatId, windowId, clienteNome = "") {
-  if (!chatId || !windowId) {
+  if (!chatId || windowId == null) {
     return false;
   }
 
@@ -85,18 +165,86 @@ async function associarJanela(chatId, windowId, clienteNome = "") {
 
   const associacoes = dados[STORAGE_ASSOCIACOES] || {};
 
-  associacoes[chatId] = {
+  let associacao = normalizarAssociacao(associacoes[chatId]);
+
+  if (!associacao) {
+    associacao = {
+      clienteNome: clienteNome,
+      windows: [],
+      criadoEm: Date.now(),
+      atualizadoEm: Date.now(),
+    };
+  }
+
+  if (clienteNome) {
+    associacao.clienteNome = clienteNome;
+  }
+
+  // Evita duplicar a mesma janela no mesmo chat.
+  const jaAssociada = associacao.windows.some(
+    (janela) => janela.windowId === windowId,
+  );
+
+  if (jaAssociada) {
+    // Salva no formato novo mesmo se era uma associação antiga.
+    associacoes[chatId] = associacao;
+
+    await chrome.storage.local.set({
+      [STORAGE_ASSOCIACOES]: associacoes,
+    });
+
+    console.log(`Chat ${chatId} já possui a janela ${windowId} associada.`);
+
+    return true;
+  }
+
+  associacao.windows.push({
     windowId: windowId,
-    clienteNome: clienteNome,
     criadoEm: Date.now(),
-    atualizadoEm: Date.now(),
-  };
+  });
+
+  associacao.atualizadoEm = Date.now();
+
+  associacoes[chatId] = associacao;
 
   await chrome.storage.local.set({
     [STORAGE_ASSOCIACOES]: associacoes,
   });
 
   console.log(`Associação criada: Chat ${chatId} → Janela ${windowId}`);
+
+  return true;
+}
+
+// ==========================================
+// REMOVE TODAS AS JANELAS DE UM CHAT
+// ==========================================
+
+async function removerAssociacao(chatId) {
+  const dados = await chrome.storage.local.get(STORAGE_ASSOCIACOES);
+
+  const associacoes = dados[STORAGE_ASSOCIACOES] || {};
+
+  const associacao = normalizarAssociacao(associacoes[chatId]);
+
+  if (!associacao) {
+    return true;
+  }
+
+  for (const janela of associacao.windows) {
+    try {
+      await chrome.windows.remove(janela.windowId);
+      console.log(`Janela ${janela.windowId} fechada.`);
+    } catch (erro) {
+      console.log(`A janela ${janela.windowId} já estava fechada.`);
+    }
+  }
+
+  delete associacoes[chatId];
+
+  await chrome.storage.local.set({
+    [STORAGE_ASSOCIACOES]: associacoes,
+  });
 
   return true;
 }
@@ -124,30 +272,10 @@ chrome.runtime.onMessage.addListener((mensagem, sender, sendResponse) => {
 
   if (mensagem.type === "REMOVER_ASSOCIACAO") {
     (async () => {
-      const dados = await chrome.storage.local.get(STORAGE_ASSOCIACOES);
-
-      const associacoes = dados[STORAGE_ASSOCIACOES] || {};
-
-      const associacao = associacoes[mensagem.chatId];
-
-      if (associacao?.windowId) {
-        try {
-          await chrome.windows.remove(associacao.windowId);
-
-          console.log(`Janela ${associacao.windowId} fechada.`);
-        } catch (erro) {
-          console.log(`A janela ${associacao.windowId} já estava fechada.`);
-        }
-      }
-
-      delete associacoes[mensagem.chatId];
-
-      await chrome.storage.local.set({
-        [STORAGE_ASSOCIACOES]: associacoes,
-      });
+      const sucesso = await removerAssociacao(mensagem.chatId);
 
       sendResponse({
-        sucesso: true,
+        sucesso: sucesso,
       });
     })();
 
@@ -158,8 +286,20 @@ chrome.runtime.onMessage.addListener((mensagem, sender, sendResponse) => {
     (async () => {
       const dados = await chrome.storage.local.get(STORAGE_ASSOCIACOES);
 
+      const associacoesOriginais = dados[STORAGE_ASSOCIACOES] || {};
+
+      const associacoes = {};
+
+      for (const chatId in associacoesOriginais) {
+        const normalizada = normalizarAssociacao(associacoesOriginais[chatId]);
+
+        if (normalizada) {
+          associacoes[chatId] = normalizada;
+        }
+      }
+
       sendResponse({
-        associacoes: dados[STORAGE_ASSOCIACOES] || {},
+        associacoes: associacoes,
       });
     })();
 
@@ -246,13 +386,30 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
   let alterado = false;
 
   for (const chatId in associacoes) {
-    if (associacoes[chatId].windowId === windowId) {
-      delete associacoes[chatId];
+    const associacao = normalizarAssociacao(associacoes[chatId]);
 
+    if (!associacao) {
+      continue;
+    }
+
+    const quantidadeAntes = associacao.windows.length;
+
+    associacao.windows = associacao.windows.filter(
+      (janela) => janela.windowId !== windowId,
+    );
+
+    if (associacao.windows.length !== quantidadeAntes) {
       alterado = true;
 
+      if (associacao.windows.length === 0) {
+        delete associacoes[chatId];
+      } else {
+        associacao.atualizadoEm = Date.now();
+        associacoes[chatId] = associacao;
+      }
+
       console.log(
-        `Associação do chat ${chatId} removida porque a janela foi fechada.`,
+        `Janela ${windowId} removida da associação do chat ${chatId}.`,
       );
     }
   }
@@ -265,7 +422,6 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
 });
 
 async function sincronizarChatsHuggy() {
-  // Procura a aba do Huggy
   const tabs = await chrome.tabs.query({
     url: "https://www.huggy.app/panel/attendance/inbox/*",
   });
@@ -276,7 +432,6 @@ async function sincronizarChatsHuggy() {
 
   const abaHuggy = tabs[0];
 
-  // Pede ao content.js todos os chats visíveis
   const resposta = await chrome.tabs.sendMessage(abaHuggy.id, {
     type: "OBTER_LISTA_CHATS",
   });
@@ -293,16 +448,25 @@ async function sincronizarChatsHuggy() {
   const mantidos = [];
 
   for (const chatId in associacoes) {
-    if (chatsPresentes.has(chatId)) {
-      mantidos.push(chatId);
+    const associacao = normalizarAssociacao(associacoes[chatId]);
 
+    if (!associacao) {
       continue;
     }
 
-    try {
-      await chrome.windows.remove(associacoes[chatId].windowId);
-    } catch (erro) {
-      console.warn(`Janela do chat ${chatId} já estava fechada.`);
+    if (chatsPresentes.has(chatId)) {
+      mantidos.push(chatId);
+      continue;
+    }
+
+    for (const janela of associacao.windows) {
+      try {
+        await chrome.windows.remove(janela.windowId);
+      } catch (erro) {
+        console.warn(
+          `Janela ${janela.windowId} do chat ${chatId} já estava fechada.`,
+        );
+      }
     }
 
     fechados.push(chatId);

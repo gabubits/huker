@@ -113,6 +113,8 @@ botaoAssociar.addEventListener("click", async () => {
     mostrarStatus(`Chat ${chatAtual.chatId} associado com sucesso.`);
 
     await carregarLista();
+  } else {
+    mostrarStatus("Não foi possível associar a janela.", true);
   }
 });
 
@@ -127,12 +129,18 @@ botaoDesassociar.addEventListener("click", async () => {
     return;
   }
 
-  await chrome.runtime.sendMessage({
+  const resposta = await chrome.runtime.sendMessage({
     type: "REMOVER_ASSOCIACAO",
     chatId: chatAtual.chatId,
   });
 
-  mostrarStatus(`Associação do chat ${chatAtual.chatId} removida.`);
+  if (resposta?.sucesso) {
+    mostrarStatus(
+      `Todas as janelas do chat ${chatAtual.chatId} foram desassociadas e fechadas.`,
+    );
+  } else {
+    mostrarStatus("Não foi possível remover a associação.", true);
+  }
 
   await carregarLista();
 });
@@ -166,12 +174,18 @@ async function carregarLista() {
 
   chats
     .sort((a, b) => {
-      return b[1].atualizadoEm - a[1].atualizadoEm;
+      return (b[1].atualizadoEm || 0) - (a[1].atualizadoEm || 0);
     })
     .forEach(([chatId, dados]) => {
       const item = document.createElement("div");
 
       item.className = "associacao";
+
+      const janelas = Array.isArray(dados.windows)
+        ? dados.windows
+        : dados.windowId != null
+          ? [{ windowId: dados.windowId }]
+          : [];
 
       item.innerHTML = `
                 <strong>
@@ -181,7 +195,8 @@ async function carregarLista() {
                 <div class="detalhes">
                     Chat: ${chatId}
                     <br>
-                    Janela: ${dados.windowId}
+                    ${janelas.length}
+                    ${janelas.length === 1 ? "janela associada" : "janelas associadas"}
                 </div>
 
                 <button
@@ -199,17 +214,25 @@ async function carregarLista() {
     botao.addEventListener("click", async () => {
       const chatId = botao.dataset.chat;
 
-      await chrome.runtime.sendMessage({
+      const resposta = await chrome.runtime.sendMessage({
         type: "REMOVER_ASSOCIACAO",
         chatId: chatId,
       });
 
-      mostrarStatus(`Chat ${chatId} desassociado.`);
+      if (resposta?.sucesso) {
+        mostrarStatus(`Todas as janelas do chat ${chatId} foram fechadas.`);
+      } else {
+        mostrarStatus("Não foi possível remover as janelas.", true);
+      }
 
       await carregarLista();
     });
   });
 }
+
+// ==========================================
+// SINCRONIZAÇÃO
+// ==========================================
 
 sincronizarChats.addEventListener("click", async () => {
   mostrarStatus("Verificando chats presentes no Huggy...");
