@@ -1,6 +1,6 @@
 const chatInfo = document.getElementById("chatInfo");
 
-const clienteNome = document.getElementById("clienteNome");
+const clienteCodigo = document.getElementById("clienteCodigo");
 
 const janelaInfo = document.getElementById("janelaInfo");
 
@@ -26,7 +26,9 @@ let janelaAtual = null;
 function mostrarStatus(mensagem, erro = false) {
   status.textContent = mensagem;
 
-  status.className = erro ? "status error" : "status show";
+  status.className = erro
+    ? "status show status-error"
+    : "status show status-success";
 
   setTimeout(() => {
     status.className = "status";
@@ -70,12 +72,12 @@ async function carregarChatAtual() {
         <strong>Chat ID:</strong>
         ${chatAtual.chatId}
         <br>
-        <strong>Cliente:</strong>
-        ${chatAtual.clienteNome || "Não identificado"}
+        <strong>Código do cliente:</strong>
+        ${chatAtual.clienteCodigo || "Não associado"}
     `;
 
-  if (chatAtual.clienteNome) {
-    clienteNome.value = chatAtual.clienteNome;
+  if (chatAtual.clienteCodigo) {
+    clienteCodigo.value = chatAtual.clienteCodigo;
   }
 }
 
@@ -98,17 +100,17 @@ botaoAssociar.addEventListener("click", async () => {
     return;
   }
 
-  const nome = clienteNome.value.trim();
+  const codigo = clienteCodigo.value.trim();
 
   const resposta = await chrome.runtime.sendMessage({
     type: "ASSOCIAR_JANELA",
     chatId: chatAtual.chatId,
     windowId: janelaAtual.id,
-    clienteNome: nome,
+    clienteCodigo: codigo,
   });
 
   if (resposta?.sucesso) {
-    chatAtual.clienteNome = nome;
+    chatAtual.clienteCodigo = codigo;
 
     mostrarStatus(`Chat ${chatAtual.chatId} associado com sucesso.`);
 
@@ -179,7 +181,7 @@ async function carregarLista() {
     .forEach(([chatId, dados]) => {
       const item = document.createElement("div");
 
-      item.className = "associacao";
+      item.className = "association-item";
 
       const janelas = Array.isArray(dados.windows)
         ? dados.windows
@@ -188,23 +190,43 @@ async function carregarLista() {
           : [];
 
       item.innerHTML = `
-                <strong>
-                    ${dados.clienteNome || "Cliente não identificado"}
-                </strong>
+                <div class="association-row">
+                    <div class="association-info">
+                        <strong class="association-name">
+                            ${dados.clienteCodigo || "Código não informado"}
+                        </strong>
 
-                <div class="detalhes">
-                    Chat: ${chatId}
-                    <br>
-                    ${janelas.length}
-                    ${janelas.length === 1 ? "janela associada" : "janelas associadas"}
+                        <div class="association-details">
+                            Chat: ${chatId}
+                            <br>
+                            ${janelas.length}
+                            ${janelas.length === 1 ? "janela associada" : "janelas associadas"}
+                        </div>
+                    </div>
+
+                    <div class="association-actions">
+                        <button
+                            type="button"
+                            data-codigo="${dados.clienteCodigo || ""}"
+                            data-chat="${chatId}"
+                            class="btn-icon abrirAtendimento"
+                            title="Abrir atendimento"
+                            aria-label="Abrir atendimento"
+                        >
+                            📂
+                        </button>
+
+                        <button
+                            type="button"
+                            data-chat="${chatId}"
+                            class="btn-icon removerLista"
+                            title="Desassociar"
+                            aria-label="Desassociar"
+                        >
+                            🗑️
+                        </button>
+                    </div>
                 </div>
-
-                <button
-                    data-chat="${chatId}"
-                    class="removerLista"
-                >
-                    Desassociar
-                </button>
             `;
 
       lista.appendChild(item);
@@ -271,3 +293,87 @@ async function iniciar() {
 }
 
 iniciar();
+
+async function obterProtocoloUltimoAtendimento(codigoCliente, chatId) {
+  const resposta = await fetch(
+    `https://intranetclt01.mgconecta.com.br:8443/atendimento_historico_fechado.php?id=${encodeURIComponent(codigoCliente)}`,
+    {
+      credentials: "include",
+    },
+  );
+
+  if (!resposta.ok) {
+    throw new Error(`Falha ao buscar histórico: ${resposta.status}`);
+  }
+
+  const html = await resposta.text();
+  const documento = new DOMParser().parseFromString(html, "text/html");
+  const descricaoEsperada = `Huggy - Protocolo ${chatId}`;
+
+  return [...documento.querySelectorAll('td[width="500"]')]
+    .filter((tdChamado) => {
+      const descricao = [...tdChamado.querySelectorAll("tr")]
+        .find((tr) =>
+          tr.querySelector("th")?.textContent.trim().startsWith("Descri"),
+        )
+        ?.querySelector("td")
+        ?.textContent.trim();
+
+      return descricao === descricaoEsperada;
+    })
+    .map((tdChamado) =>
+      [...tdChamado.querySelectorAll("tr")]
+        .find((tr) =>
+          tr.querySelector("th")?.textContent.trim().startsWith("N"),
+        )
+        ?.querySelector("td strong")
+        ?.textContent.trim(),
+    )
+    .find(Boolean);
+}
+
+async function abrirAtendimento(codigoCliente, chatId) {
+  if (!codigoCliente) {
+    mostrarStatus("Código do cliente não informado.", true);
+    return;
+  }
+
+  try {
+    mostrarStatus("Buscando último atendimento...");
+
+    const protocolo = await obterProtocoloUltimoAtendimento(
+      codigoCliente,
+      chatId,
+    );
+
+    if (!protocolo) {
+      mostrarStatus("Nenhum atendimento encontrado para este chat.", true);
+      return;
+    }
+
+    await chrome.runtime.sendMessage({
+      type: "ABRIR_ATENDIMENTO",
+      protocolo: protocolo,
+      chatId: chatId,
+      clienteCodigo: codigoCliente,
+    });
+
+    mostrarStatus("Atendimento aberto em uma nova janela.");
+  } catch (erro) {
+    console.error(erro);
+    mostrarStatus(
+      erro.message || "Não foi possível abrir o atendimento.",
+      true,
+    );
+  }
+}
+
+lista.addEventListener("click", async (evento) => {
+  const botao = evento.target.closest(".abrirAtendimento");
+
+  if (!botao) {
+    return;
+  }
+
+  await abrirAtendimento(botao.dataset.codigo, botao.dataset.chat);
+});

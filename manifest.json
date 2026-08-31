@@ -4,7 +4,10 @@
   "version": "1.0.0",
   "description": "Deixa o gerenciamento de chats e janelas mais fácil!",
   "permissions": ["tabs", "windows", "storage"],
-  "host_permissions": ["https://www.huggy.app/*"],
+  "host_permissions": [
+    "https://www.huggy.app/*",
+    "https://intranetclt01.mgconecta.com.br:8443/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },

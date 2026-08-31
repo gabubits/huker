@@ -9,7 +9,7 @@ const STORAGE_CONFIG_JANELA = "configJanela";
 
 chrome.runtime.onMessage.addListener((mensagem, sender) => {
   if (mensagem.type === "HUGGY_CHAT_CHANGED") {
-    processarChatHuggy(mensagem.chatId, mensagem.clienteNome, sender.tab);
+    processarChatHuggy(mensagem.chatId, "", sender.tab);
   }
 });
 
@@ -17,14 +17,19 @@ chrome.runtime.onMessage.addListener((mensagem, sender) => {
 // PROCESSA O CHAT ATUAL
 // ==========================================
 
-async function processarChatHuggy(chatId, clienteNome, tab) {
+async function processarChatHuggy(chatId, clienteCodigo, tab) {
   if (!chatId) {
     return;
   }
 
+  const dados = await chrome.storage.local.get(STORAGE_ASSOCIACOES);
+  const associacoes = dados[STORAGE_ASSOCIACOES] || {};
+  const associacao = normalizarAssociacao(associacoes[chatId]);
+  const codigoAssociado = associacao?.clienteCodigo || "";
+
   const chatAtual = {
     chatId: chatId,
-    clienteNome: clienteNome || "",
+    clienteCodigo: clienteCodigo || codigoAssociado || "",
     tabId: tab?.id || null,
     atualizadoEm: Date.now(),
   };
@@ -156,7 +161,7 @@ async function focarAssociacao(chatId) {
 // ASSOCIA UMA JANELA AO CHAT
 // ==========================================
 
-async function associarJanela(chatId, windowId, clienteNome = "") {
+async function associarJanela(chatId, windowId, clienteCodigo = "") {
   if (!chatId || windowId == null) {
     return false;
   }
@@ -169,15 +174,15 @@ async function associarJanela(chatId, windowId, clienteNome = "") {
 
   if (!associacao) {
     associacao = {
-      clienteNome: clienteNome,
+      clienteCodigo: clienteCodigo,
       windows: [],
       criadoEm: Date.now(),
       atualizadoEm: Date.now(),
     };
   }
 
-  if (clienteNome) {
-    associacao.clienteNome = clienteNome;
+  if (clienteCodigo) {
+    associacao.clienteCodigo = clienteCodigo;
   }
 
   // Evita duplicar a mesma janela no mesmo chat.
@@ -189,9 +194,22 @@ async function associarJanela(chatId, windowId, clienteNome = "") {
     // Salva no formato novo mesmo se era uma associação antiga.
     associacoes[chatId] = associacao;
 
-    await chrome.storage.local.set({
+    const atualizacaoStorage = {
       [STORAGE_ASSOCIACOES]: associacoes,
-    });
+    };
+
+    const dadosChatAtual = await chrome.storage.local.get(STORAGE_CHAT_ATUAL);
+    const chatAtual = dadosChatAtual[STORAGE_CHAT_ATUAL];
+
+    if (chatAtual?.chatId === chatId) {
+      atualizacaoStorage[STORAGE_CHAT_ATUAL] = {
+        ...chatAtual,
+        clienteCodigo: associacao.clienteCodigo || "",
+        atualizadoEm: Date.now(),
+      };
+    }
+
+    await chrome.storage.local.set(atualizacaoStorage);
 
     console.log(`Chat ${chatId} já possui a janela ${windowId} associada.`);
 
@@ -207,9 +225,22 @@ async function associarJanela(chatId, windowId, clienteNome = "") {
 
   associacoes[chatId] = associacao;
 
-  await chrome.storage.local.set({
+  const atualizacaoStorage = {
     [STORAGE_ASSOCIACOES]: associacoes,
-  });
+  };
+
+  const dadosChatAtual = await chrome.storage.local.get(STORAGE_CHAT_ATUAL);
+  const chatAtual = dadosChatAtual[STORAGE_CHAT_ATUAL];
+
+  if (chatAtual?.chatId === chatId) {
+    atualizacaoStorage[STORAGE_CHAT_ATUAL] = {
+      ...chatAtual,
+      clienteCodigo: associacao.clienteCodigo || "",
+      atualizadoEm: Date.now(),
+    };
+  }
+
+  await chrome.storage.local.set(atualizacaoStorage);
 
   console.log(`Associação criada: Chat ${chatId} → Janela ${windowId}`);
 
@@ -249,6 +280,23 @@ async function removerAssociacao(chatId) {
   return true;
 }
 
+async function abrirAtendimento(protocolo, chatId, clienteCodigo = "") {
+  if (!protocolo) {
+    return false;
+  }
+
+  const janela = await chrome.windows.create({
+    url: `https://intranetclt01.mgconecta.com.br:8443/atendimento_iniciar_new.php?id=${encodeURIComponent(protocolo)}`,
+    focused: true,
+  });
+
+  if (chatId && janela?.id != null) {
+    await associarJanela(chatId, janela.id, clienteCodigo);
+  }
+
+  return true;
+}
+
 // ==========================================
 // MENSAGENS DO POPUP
 // ==========================================
@@ -259,7 +307,7 @@ chrome.runtime.onMessage.addListener((mensagem, sender, sendResponse) => {
       const sucesso = await associarJanela(
         mensagem.chatId,
         mensagem.windowId,
-        mensagem.clienteNome,
+        mensagem.clienteCodigo,
       );
 
       sendResponse({
@@ -318,6 +366,31 @@ chrome.runtime.onMessage.addListener((mensagem, sender, sendResponse) => {
     return true;
   }
 
+  if (mensagem.type === "ABRIR_ATENDIMENTO") {
+    (async () => {
+      try {
+        const sucesso = await abrirAtendimento(
+          mensagem.protocolo,
+          mensagem.chatId,
+          mensagem.clienteCodigo,
+        );
+
+        sendResponse({
+          sucesso: sucesso,
+        });
+      } catch (erro) {
+        console.error(erro);
+
+        sendResponse({
+          sucesso: false,
+          erro: erro.message,
+        });
+      }
+    })();
+
+    return true;
+  }
+
   if (mensagem.type === "SINCRONIZAR_CHATS") {
     (async () => {
       try {
@@ -367,7 +440,7 @@ chrome.commands.onCommand.addListener(async (command) => {
     return;
   }
 
-  await associarJanela(chatAtual.chatId, janela.id, chatAtual.clienteNome);
+  await associarJanela(chatAtual.chatId, janela.id, chatAtual.clienteCodigo);
 
   console.log(
     `Atalho: Chat ${chatAtual.chatId} associado à janela ${janela.id}`,
