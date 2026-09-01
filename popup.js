@@ -6,8 +6,6 @@ const janelaInfo = document.getElementById("janelaInfo");
 
 const botaoAssociar = document.getElementById("associar");
 
-const botaoDesassociar = document.getElementById("desassociarAtual");
-
 const lista = document.getElementById("lista");
 
 const contador = document.getElementById("contador");
@@ -18,6 +16,64 @@ const sincronizarChats = document.getElementById("sincronizarChats");
 
 let chatAtual = null;
 let janelaAtual = null;
+
+function atualizarExibicaoChatAtual() {
+  if (!chatAtual?.chatId) {
+    chatInfo.innerHTML = "Nenhum chat do Huggy identificado ainda.";
+    clienteCodigo.value = "";
+    clienteCodigo.disabled = false;
+    clienteCodigo.removeAttribute("title");
+
+    return;
+  }
+
+  const janelas = chatAtual.janelasAssociadas || [];
+  const possuiAssociacao = janelas.length > 0;
+
+  chatInfo.innerHTML = `
+        <div class="chat-current-row">
+            <div class="chat-current-info">
+                <strong>Chat ID:</strong>
+                ${chatAtual.chatId}
+                <br>
+                <strong>Código do cliente:</strong>
+                ${chatAtual.clienteCodigo || "Não associado"}
+                <br>
+                <strong>Janelas associadas:</strong>
+                ${janelas.length}
+            </div>
+
+            ${
+              possuiAssociacao
+                ? `<div class="association-actions">
+                    <button
+                        type="button"
+                        class="btn-icon abrirAtendimentoAtual"
+                        title="Abrir atendimento"
+                        aria-label="Abrir atendimento"
+                    >📂</button>
+                    <button
+                        type="button"
+                        class="btn-icon removerAssociacaoAtual"
+                        title="Desassociar"
+                        aria-label="Desassociar"
+                    >🗑️</button>
+                </div>`
+                : ""
+            }
+        </div>
+    `;
+
+  clienteCodigo.value = chatAtual.clienteCodigo || "";
+  clienteCodigo.disabled = Boolean(chatAtual.clienteCodigo);
+
+  if (clienteCodigo.disabled) {
+    clienteCodigo.title =
+      "O código deste cliente já está associado a este chat.";
+  } else {
+    clienteCodigo.removeAttribute("title");
+  }
+}
 
 // ==========================================
 // STATUS
@@ -62,23 +118,7 @@ async function carregarChatAtual() {
 
   chatAtual = resposta?.chatAtual || null;
 
-  if (!chatAtual?.chatId) {
-    chatInfo.innerHTML = "Nenhum chat do Huggy identificado ainda.";
-
-    return;
-  }
-
-  chatInfo.innerHTML = `
-        <strong>Chat ID:</strong>
-        ${chatAtual.chatId}
-        <br>
-        <strong>Código do cliente:</strong>
-        ${chatAtual.clienteCodigo || "Não associado"}
-    `;
-
-  if (chatAtual.clienteCodigo) {
-    clienteCodigo.value = chatAtual.clienteCodigo;
-  }
+  atualizarExibicaoChatAtual();
 }
 
 // ==========================================
@@ -111,6 +151,14 @@ botaoAssociar.addEventListener("click", async () => {
 
   if (resposta?.sucesso) {
     chatAtual.clienteCodigo = codigo;
+    const janelas = chatAtual.janelasAssociadas || [];
+
+    if (!janelas.some((janela) => janela.windowId === janelaAtual.id)) {
+      janelas.push({ windowId: janelaAtual.id });
+    }
+
+    chatAtual.janelasAssociadas = janelas;
+    atualizarExibicaoChatAtual();
 
     mostrarStatus(`Chat ${chatAtual.chatId} associado com sucesso.`);
 
@@ -124,7 +172,7 @@ botaoAssociar.addEventListener("click", async () => {
 // REMOVE O CHAT ATUAL
 // ==========================================
 
-botaoDesassociar.addEventListener("click", async () => {
+async function desassociarChatAtual() {
   if (!chatAtual?.chatId) {
     mostrarStatus("Nenhum chat identificado.", true);
 
@@ -137,6 +185,10 @@ botaoDesassociar.addEventListener("click", async () => {
   });
 
   if (resposta?.sucesso) {
+    chatAtual.clienteCodigo = "";
+    chatAtual.janelasAssociadas = [];
+    atualizarExibicaoChatAtual();
+
     mostrarStatus(
       `Todas as janelas do chat ${chatAtual.chatId} foram desassociadas e fechadas.`,
     );
@@ -145,6 +197,17 @@ botaoDesassociar.addEventListener("click", async () => {
   }
 
   await carregarLista();
+}
+
+chatInfo.addEventListener("click", async (evento) => {
+  if (evento.target.closest(".abrirAtendimentoAtual")) {
+    await abrirAtendimento(chatAtual?.clienteCodigo, chatAtual?.chatId);
+    return;
+  }
+
+  if (evento.target.closest(".removerAssociacaoAtual")) {
+    await desassociarChatAtual();
+  }
 });
 
 // ==========================================
@@ -243,6 +306,11 @@ async function carregarLista() {
 
       if (resposta?.sucesso) {
         mostrarStatus(`Todas as janelas do chat ${chatId} foram fechadas.`);
+        if (chatAtual?.chatId === chatId) {
+          chatAtual.clienteCodigo = "";
+          chatAtual.janelasAssociadas = [];
+          atualizarExibicaoChatAtual();
+        }
       } else {
         mostrarStatus("Não foi possível remover as janelas.", true);
       }
@@ -319,7 +387,7 @@ async function obterProtocoloUltimoAtendimento(codigoCliente, chatId) {
         ?.querySelector("td")
         ?.textContent.trim();
 
-      return descricao === descricaoEsperada;
+      return descricao.includes(descricaoEsperada);
     })
     .map((tdChamado) =>
       [...tdChamado.querySelectorAll("tr")]

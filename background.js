@@ -356,10 +356,22 @@ chrome.runtime.onMessage.addListener((mensagem, sender, sendResponse) => {
 
   if (mensagem.type === "OBTER_CHAT_ATUAL") {
     (async () => {
-      const dados = await chrome.storage.local.get(STORAGE_CHAT_ATUAL);
+      const dados = await chrome.storage.local.get([
+        STORAGE_CHAT_ATUAL,
+        STORAGE_ASSOCIACOES,
+      ]);
+      const chatAtual = dados[STORAGE_CHAT_ATUAL];
+      const associacao = normalizarAssociacao(
+        dados[STORAGE_ASSOCIACOES]?.[chatAtual?.chatId],
+      );
 
       sendResponse({
-        chatAtual: dados[STORAGE_CHAT_ATUAL] || null,
+        chatAtual: chatAtual
+          ? {
+              ...chatAtual,
+              janelasAssociadas: associacao?.windows || [],
+            }
+          : null,
       });
     })();
 

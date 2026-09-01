@@ -283,3 +283,12 @@ body {
   background: #fef2f2;
   border-color: #fecaca;
 }
+.chat-current-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.chat-current-info {
+  min-width: 0;
+}
