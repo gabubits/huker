@@ -54,6 +54,12 @@ function atualizarExibicaoChatAtual() {
                     >📂</button>
                     <button
                         type="button"
+                        class="btn-icon abrirEssenciaisAtual"
+                        title="Abrir abas essenciais"
+                        aria-label="Abrir abas anteriores"
+                    >🗂️</button>
+                    <button
+                        type="button"
                         class="btn-icon removerAssociacaoAtual"
                         title="Desassociar"
                         aria-label="Desassociar"
@@ -205,6 +211,20 @@ chatInfo.addEventListener("click", async (evento) => {
     return;
   }
 
+  if (evento.target.closest(".abrirEssenciaisAtual")) {
+    await abrirHistorico(
+      chatAtual?.clienteCodigo,
+      "atendimento_historico_fechado.php",
+      "atendimentos anteriores",
+    );
+    await abrirHistorico(
+      chatAtual?.clienteCodigo,
+      "chamados_historico.php",
+      "chamados anteriores",
+    );
+    return;
+  }
+
   if (evento.target.closest(".removerAssociacaoAtual")) {
     await desassociarChatAtual();
   }
@@ -277,6 +297,15 @@ async function carregarLista() {
                             aria-label="Abrir atendimento"
                         >
                             📂
+                        </button>
+                        <button
+                            type="button"
+                            data-codigo="${dados.clienteCodigo || ""}"
+                            class="btn-icon abrirEssenciais"
+                            title="Abrir abas essenciais"
+                            aria-label="Abrir abas essenciais"
+                        >
+                            🗂️
                         </button>
 
                         <button
@@ -436,12 +465,52 @@ async function abrirAtendimento(codigoCliente, chatId) {
   }
 }
 
-lista.addEventListener("click", async (evento) => {
-  const botao = evento.target.closest(".abrirAtendimento");
-
-  if (!botao) {
+async function abrirHistorico(codigoCliente, pagina, descricao) {
+  if (!codigoCliente) {
+    mostrarStatus("Código do cliente não informado.", true);
     return;
   }
 
-  await abrirAtendimento(botao.dataset.codigo, botao.dataset.chat);
+  await carregarJanelaAtual();
+
+  if (!janelaAtual?.id) {
+    mostrarStatus("Não foi possível identificar a janela atual.", true);
+    return;
+  }
+
+  const url = new URL(pagina, "https://intranetclt01.mgconecta.com.br:8443/");
+  url.searchParams.set("id", codigoCliente);
+
+  await chrome.tabs.create({
+    windowId: janelaAtual.id,
+    url: url.toString(),
+    active: true,
+  });
+
+  mostrarStatus(`${descricao} abertos em uma nova aba.`);
+}
+
+lista.addEventListener("click", async (evento) => {
+  const botao = evento.target.closest(".abrirAtendimento");
+
+  if (botao) {
+    await abrirAtendimento(botao.dataset.codigo, botao.dataset.chat);
+    return;
+  }
+
+  const botaoEssenciais = evento.target.closest(".abrirEssenciais");
+
+  if (botaoEssenciais) {
+    await abrirHistorico(
+      botaoEssenciais.dataset.codigo,
+      "atendimento_historico_fechado.php",
+      "Atendimentos anteriores",
+    );
+    await abrirHistorico(
+      botaoEssenciais.dataset.codigo,
+      "chamados_historico.php",
+      "Chamados anteriores",
+    );
+    return;
+  }
 });
